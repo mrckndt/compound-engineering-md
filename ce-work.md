@@ -33,16 +33,16 @@ Execute all in-scope units continuously in this run; progress updates do not end
 ## Phase 0: Workspace & Plan Intake
 
 1. **Writable checkout & branch safety:**
-   Require a writable git checkout (if none is available, stop and report the blocker). Resolve the default branch via `origin/HEAD` (else repo metadata / `gh repo view`, else `main`/`master`). If on the default branch, detached `HEAD`, or uncertain:
-   1. If a remote exists, run `git fetch origin <default>`.
-   2. Choose the branch base: `origin/<default>` when a remote exists and `HEAD` has no commits ahead of it, else `HEAD`.
-   3. Create a descriptive feature branch, verify with `git branch --show-current`, and announce it in 1 line.
+   Require a writable git checkout (if none is available, stop and report the blocker; if the user requested worktree isolation, invoke `ce-worktree` first — control returns here with the isolated path and branch). Resolve the default branch on its tracking remote (`<remote>/<default>`). If on the default branch, detached `HEAD`, or the default branch is unknown:
+   1. If a tracking remote is resolved, run `git fetch -- "<remote>" "<default>"`.
+   2. Choose the branch base: `"<remote>/<default>"` when the fetch succeeded and `HEAD` has no commits ahead of it, else `HEAD` (and state that you branched from `HEAD` when the default/remote was unknown).
+   3. Create a descriptive feature branch (`git checkout -b "<branch-name>" -- "<base>"`), verify with `git branch --show-current`, and announce it in 1 line.
    Otherwise stay on the invoked feature branch without renaming it.
 2. **Pre-work WIP & run-state snapshot:**
    Record and retain these run-state variables across context compaction:
    - `work_base`: `git rev-parse HEAD` immediately after Step 1 branch setup.
    - `last_simplified_sha`: initialized to `work_base`.
-   - `pre_work_wip`: `git status --short --untracked-files=all` plus pre-existing unpushed commits (`git log origin/<default>..HEAD`, or "unknown" without a remote).
+   - `pre_work_wip`: `git status --short --untracked-files=all` (extracting repo-relative paths only — destination side on renames — passed as repeated `exclude:<path>` tokens when any path contains a comma, else comma-separated) plus pre-existing unpushed commits checked via `git log --oneline "<remote>/<default>..HEAD" --` (if no remote exists OR the command exits non-zero, record `"unknown"` — never treat empty output from a failed probe as "none").
    - `proof_tests`: list of proof test paths recorded during Phase 1.
    Untouched WIP rides along uncommitted without stashing. If an in-scope unit must edit an already-dirty file, ask the user once (covering all colliding files) whether to commit them with the user's edits or leave them uncommitted (recording excluded files in `excluded_wip` as unshipped run-wide exclusions). Never push/publish pre-existing unpushed commits without user authorization.
 3. **Plan readiness, intake, or bare-prompt triage:**
@@ -79,7 +79,7 @@ Process units in dependency layers until all in-scope units are complete.
 
 ### 1b. Per-Unit Proof-First Protocol (inline or inside every worker packet)
 
-Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relevant `Verification Contract` entries, resolved `Deferred to Implementation` answers, cited `R`/`F`/`AE`/`KTD` plus every Product Contract Key Decision whose `Governs R...` links name the unit's cited Rs, `Patterns to follow`, user constraints (where plan and user limit conflict, **user limit wins** and worker reports the conflict), the **Worker Guardrails** below, and Steps 1-6:
+Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relevant `Verification Contract` entries, resolved `Deferred to Implementation` answers, cited `R`/`F`/`AE`/`KTD` plus every Product Contract Key Decision whose `Governs R...` links name the unit's cited Rs, `Patterns to follow`, **governing project instructions and any subdirectory-scoped instruction files covering the unit's `Files`**, user constraints (where plan and user limit conflict, **user limit wins** and worker reports the conflict), the **Worker Guardrails** below, and Steps 1-6:
 
 **Worker Guardrails (verbatim in every worker packet):**
 - Edit only assigned `Files`; if completion requires unowned files or broader authority, stop without editing them and report the needed scope expansion.
@@ -103,7 +103,7 @@ Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relev
    - Append its proof-test paths to `proof_tests`, mark the unit completed in the task tracker, and immediately retire its worker handle (when a subagent ran) before revalidating remaining wave results against the advancing tree.
 3. Capture verification evidence without fabrication: re-derive only what the tree proves and mark missing fields unverified (never fabricate a red-before-green observation).
 4. **Handling blockers:** A held/refused/unverified step keeps that unit open (retry a refused action yourself only within permissions and user limits, never via a disallowed route; commit finished parts only if standalone). Hold blocked units and their dependents, finish any independent unblocked units, then report `BLOCKED`.
-5. **Simplify as you go (cluster boundaries):** Every 2-3 related units or at a natural phase boundary (never after every single unit), when substantive human-authored code changed since `last_simplified_sha` reaches >=30 lines, run Phase 2 Step 3 (passing `git diff --name-only <last_simplified_sha>..HEAD` excluding `pre_work_wip`/`excluded_wip`), verify, path-limited commit, and update `last_simplified_sha = HEAD`.
+5. **Simplify as you go (cluster boundaries):** Every 2-3 related units or at a natural phase boundary (never after every single unit), when substantive human-authored code changed since `last_simplified_sha` reaches >=30 lines, run Phase 2 Step 3 on the diff range `<last_simplified_sha>..HEAD` (excluding `pre_work_wip`/`excluded_wip`), verify, path-limited commit, and update `last_simplified_sha = HEAD`.
 
 ---
 
@@ -111,7 +111,7 @@ Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relev
 
 1. **Core Checks:** Run the project's full test suite, typecheck, and lint command on the completed change.
 2. **UI Verification (if applicable):** For user-visible UI changes, inspect desktop and mobile widths in a browser when tooling is available (else audit layout code for overflow/responsive breakage and record browser check as unavailable). For Figma-sourced UI when both Figma and browser/screenshot tools are reachable, compare both sides at each design width and re-check after fixes; if either side is unreachable, record which side is unavailable and skip the Figma comparison.
-3. **Simplify (conditional):** When substantive human-authored code changed since `last_simplified_sha` reaches >=30 lines (skip purely mechanical diffs), compute the changed file list `git diff --name-only <last_simplified_sha>..HEAD` (excluding any untouched `pre_work_wip`/`excluded_wip` paths) and invoke **`ce-simplify`** (`ce-simplify.md`) with that explicit file list as scope, `mode:pipeline`, every recorded `proof-test:<path>`, and `plan:<path>` (context only). Whenever `ce-simplify` modifies files, verify, make a separate path-limited commit, and update `last_simplified_sha = HEAD` before Phase 3. If `ce-simplify` is unavailable, do a brief manual pass on those files while protecting proof tests and safety checks, then verify, commit separately, and update `last_simplified_sha = HEAD`.
+3. **Simplify (conditional):** When substantive human-authored code changed since `last_simplified_sha` reaches >=30 lines (skip purely mechanical diffs), invoke **`ce-simplify`** (`ce-simplify.md`) scoped to the diff range `changes in <last_simplified_sha>..HEAD` (excluding any untouched `pre_work_wip`/`excluded_wip` paths — never bare whole-file names), with `mode:pipeline`, every recorded `proof-test:<path>`, and `plan:<path>` (context only). Whenever `ce-simplify` modifies files, verify, make a separate path-limited commit, and update `last_simplified_sha = HEAD` before Phase 3. If `ce-simplify` is unavailable, do a brief manual pass on that diff while protecting proof tests and safety checks, then verify, commit separately, and update `last_simplified_sha = HEAD`.
 
 ---
 
@@ -119,14 +119,14 @@ Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relev
 
 **Completion gate:** Code review MUST run before finishing, unless the diff is purely mechanical (formatting, dependency bumps, lint-only fixes, generated artifacts), in which case record `Code review: skipped (mechanical diff)` with a 1-line reason. **Not mechanical:** single- or multi-file behavior edits, control-flow/error-class/behavior-test changes, or applying external/prior review findings. Never substitute a mental self-review or "prior findings already applied".
 
-1. **Invoke Read-Only Review:** Run **`ce-code-review`** (`ce-code-review.md`) with `mode:agent`, `base:<work_base>`, `plan:<path>` (when known), `exclude:<pre_work_wip paths>` (when untouched WIP exists), and `depth:full` ONLY when the plan, task, or user explicitly asked for a deep/thorough review. Wait for `status: "complete"`.
+1. **Invoke Read-Only Review:** Run **`ce-code-review`** (`ce-code-review.md`) with `mode:agent`, `base:<work_base>`, `plan:<path>` (when known), `plan_group:<PR-label>` (when executing a single group of a multi-PR plan), `exclude:<comma-separated pre_work_wip paths>` (when untouched WIP exists), and `depth:full` ONLY when the plan, task, or user explicitly asked for a deep/thorough review. Wait for `status: "complete"`.
    - **If `ce-code-review` fails to load or returns `failed`/`degraded`/`skipped`:** in an interactive session, run a harness-native review if available, fix inline, and record `Code review: harness-native fallback` with a 1-line reason; otherwise record `Code review: skipped (ce-code-review unavailable)` and perform an explicit manual diff scan in Phase 4.
 2. **Verify & Triage Findings (caller owns apply, not the reviewer):**
-   - From the `mode:agent` JSON, treat `actionable_findings` as the candidate fix queue (valid across `lite`, `focused`, and `full` depths), and read all remaining entries in `findings` (especially `validation_status: "unresolved"` gates and `owner: "human"` / `"release"` items) for the Residual Work Gate without auto-applying them.
+   - From the `mode:agent` JSON, treat `actionable_findings` as the candidate fix queue (valid across `lite`, `focused`, and `full` depths), and read all remaining entries in `findings` (especially `validation_status: "unresolved"` gates and `owner: "human"` / `"release"` items) for the Residual Work Gate without auto-applying them. You may independently inspect an `unresolved` gate: if confirmed in code, fix it like an actionable finding; if refuted with quoted evidence, close it; otherwise hold it for Step 5.
    - Verify each candidate against evidence and agreed scope. **`confidence`, `autofix_class`, and `suggested_fix` do NOT prove benefit or grant permission.** Reject unfounded claims and record why; investigate significant problems lacking a `suggested_fix` before deferring; passing tests do NOT prove an unverified safety property or authorize changing an agreed requirement. Defer items needing a user product choice or outside scope/permission.
 3. **Apply Fixes (file-grouped):**
    - Apply small fixes whose code is already in context inline, then **verify and path-limited commit inline fixes first** so any subsequent shared-workspace parallel fix wave starts on a clean committed baseline.
-   - Group remaining fixes by `file` (ordered `P0` -> `P3`; keep unrelated files in separate batches; >8 findings on one file -> serial passes by severity) and dispatch parallel worker subagents across disjoint files under Phase 1a's parallel/shared-workspace safety rules. Workers verify evidence still matches, edit only assigned `#` findings, never re-run review, do not commit, and report applied vs. skipped `#` with reasons.
+   - Group remaining fixes by `file` (ordered `P0` -> `P3`; keep unrelated files in separate batches; >8 findings on one file -> serial passes by severity) and dispatch parallel worker subagents across disjoint files under Phase 1a's parallel/shared-workspace safety and capacity-backpressure rules. Give every fix worker the governing project and scoped instruction files for its assigned files, user constraints, Phase 1b Worker Guardrails, and its assigned `#` findings. Workers verify evidence still matches, edit only assigned `#` findings, never re-run review, do not commit, and report applied vs. skipped `#` with reasons.
 4. **Verify & Commit Fixes:** After each parallel fix wave, review diffs (scope = assigned `#` only), run tests (`requires_verification: true` -> at least targeted tests; multi-file -> full suite and lint; use the Two-fix rule if a fix breaks tests), and make a path-limited commit (`fix(review): apply findings #...`). Re-run `ce-code-review` ONLY if fixes materially altered control flow, contracts, or architecture (max 1 follow-up round; execute one final triage/apply/commit pass on its findings, then proceed unconditionally to Step 5).
 5. **Residual Work Gate:**
    - If ANY open `P0`/`P1` in `findings` (whether validated, `lite`/`focused`, or `validation_status: "unresolved"`), OR any unresolved problem preventing the requested outcome or invalidating a settled decision, cannot be resolved within scope/permission -> stop and report `BLOCKED` with missing evidence/decision, consequence, and recommendation (group related user decisions).
@@ -151,3 +151,7 @@ Present a concise final report with:
 2. **Verification Evidence** (commands run, proof tests, exceptions)
 3. **Simplify & Review Summary** (`Verdict`, lenses run, findings applied/rejected/unresolved)
 4. **Residual / Deferred Items, Unshipped Exclusions, or Blockers** (if any)
+
+**Optional next steps (offer cleanly without auto-pushing):**
+- If this run corrected a wrong belief about how the codebase behaves (a failed approach, real review defect, or wrong assumption/doc), suggest `ce-compound` (or invoke `ce-compound mode:non-interactive` in non-interactive runs; **control returns** here on completion) before shipping so the lesson travels with the PR.
+- To push and open a pull request, transfer control to `ce-commit-push-pr` passing repeated `exclude:<path>` tokens for pre-work paths not committed this run plus any `## Unapplied review findings`; if pre-existing unpushed commits exist OR their status is `"unknown"`, transfer to `ce-commit` instead so unoffered commits are not published. For browser QA before shipping UI changes, suggest `ce-dogfood` or `ce-test-browser`.

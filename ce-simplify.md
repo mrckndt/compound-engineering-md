@@ -18,8 +18,8 @@ Strip optional tokens `mode:pipeline`, `size-cutoff:<N>`, `proof-test:<path>` (r
 - **Standalone mode** (user requested directly): Report findings first without editing unless the user explicitly asked to just fix them; requests to `audit`, `find`, `review`, or `list` ALWAYS report first without editing.
 
 Resolve scope in order:
-1. Explicit user/caller path or scope (authoritative; keep edits within it).
-2. Current git branch versus its base including staged and unstaged changes (`git diff $(git merge-base HEAD <base>)`, without `..HEAD`); without a usable base, use `git diff HEAD`.
+1. Explicit user/caller diff range (e.g., `changes in <sha>..HEAD`, excluding any listed paths) or explicit path/directory scope (authoritative; keep edits strictly within the diff hunks for a diff range, or within the named files/directory for a path scope).
+2. Current git branch versus the merge base with the default branch on its tracking remote, including staged and unstaged changes: first compute `BASE=$(git merge-base HEAD -- "<remote>/<default>")` and verify a non-zero-length SHA with exit 0 before running `git diff "$BASE"`. If the default branch/remote or merge-base is unknown or fails, fall back explicitly to `git diff HEAD` and disclose it (never pass an empty substitution into `git diff`).
 3. Standalone fallback outside git or without a diff: files edited earlier in this conversation.
 
 If scope resolution finds nothing:
@@ -109,7 +109,7 @@ Treat the supplied co-change history and import graph as leads to verify in actu
 **Completion barrier:** Wait until every dispatched reviewer reaches a terminal outcome (and release finished review agents when the host requires caller-owned cleanup) before proceeding.
 
 **Cross-reviewer structural grouping (when Lens 6 ran):**
-- Group findings across all reviewers under root-cause structural changes ONLY when all three hold: co-changing pieces end up together, independent pieces untie, and dependencies point toward more stable code (include a special case under a structural change only when that change eliminates it; otherwise keep findings separate).
+- Group findings across all reviewers under root-cause structural changes ONLY when all three hold: co-changing pieces end up together, independent pieces untie, and dependencies point toward more stable code (include a special case under a structural change only when that change eliminates it; otherwise keep findings separate). Persist groupings to a unique private temp dir created with `mktemp -d "${TMPDIR:-/tmp}/ce-simplify-XXXXXX"` and record its absolute path in run state or the task tracker so it survives compaction.
 - **Public-interface contract check:** Verify every exported function/public interface preserves outputs, errors, side effects, and ordering on its own; list changes that cannot as `not applicable` (with reason) and report bug-fixing changes as possible defects.
 
 ### Choose Execution Path

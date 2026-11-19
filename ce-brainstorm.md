@@ -1,6 +1,6 @@
 ---
 name: ce-brainstorm
-description: "Explore vague or ambiguous ideas into a right-sized Product Contract (WHAT to build, not HOW). Use when scoping a feature or resolving product decisions before planning."
+description: "Explore vague or ambiguous ideas into a right-sized Product Contract (WHAT to build, not HOW). Use when scoping a feature or resolving product decisions before planning. Not for executing already-specified work."
 argument-hint: "[feature idea or problem to explore]"
 ---
 
@@ -15,7 +15,7 @@ Explore a vague or ambiguous idea through structured dialogue to produce a right
 ## Core Interaction Rules
 
 1. **One question per turn.** Pick the single highest-leverage question and ask only that; wait for the answer before asking the next.
-2. **Default to concrete choices.** Prefer single-select multiple choice (3-4 genuinely distinct, defensible options) using the host's blocking question tool when available, falling back to numbered options in chat. Use multi-select only for compatible sets (goals, constraints, non-goals). Use open-ended questions for rigor probes, scoping-synthesis confirmation, and genuinely narrative/diagnostic answers, anchored on something concrete (e.g., an observed workaround or specific actor).
+2. **Default to concrete choices.** Prefer single-select multiple choice with **2-3 distinct, defensible options** (never more than 3 explicit options and no explicit `"Other"` in a blocking question tool, since hosts like Codex cap options at 3 and add their own free-text choice). When >3 options are defensible, present them in numbered chat prose and ask open-ended or split sequentially. Use multi-select only for compatible sets (<=3 options, else chat prose). Use open-ended questions for rigor probes, scoping-synthesis confirmation, and genuinely narrative/diagnostic answers, anchored on something concrete (e.g., an observed workaround or specific actor).
 3. **Look up repo facts yourself.** Check the codebase, existing docs, and conventions for anything the environment can answer; reserve questions for unresolved product direction, priorities, trade-offs, and scope.
 4. **Verify before claiming.** Confirm claims about existing code, tables, configs, dependencies, or absence ("no retry exists") against the repo; label anything unverified as an explicit assumption.
 5. **Apply YAGNI to carrying cost.** Recommend the smallest scope that achieves the user's underlying goal without narrowing what they asked for. Recommend added scope or safeguards only when the goal fails without them or leaving them out lets uncaught harm land. Present expensive-to-add-later items (stored data, shared interfaces, money, security) as explicit choices without pushing them as defaults.
@@ -30,7 +30,9 @@ Explore a vague or ambiguous idea through structured dialogue to produce a right
 ## Phase 1: Intake, Scope Triage & Grounding
 
 0. **Route, Resume & Fast-Path Check:**
+   - **Blank invocation:** If no idea or problem was supplied (and none is active in the conversation), ask what the user wants to explore and wait.
    - **Direct answer:** Answer trivial factual questions or single-step requests directly without entering brainstorming.
+   - **Verdict redirect:** If the request is really asking for a yes/no adoption verdict on a named technology or a holistic take on an existing doc, route to `ce-pov` instead.
    - **Non-software route:** If the task does not involve building, modifying, or architecting software, bypass repo scans, Grounding Scout, Claim Verifier, and Phase 4 unified-plan writing. Keep Core Rules 1-2 and the Blindspot Pass; explore (broad -> options -> converge), present an in-chat summary (decisions, direction, open threads, assumptions), and offer next steps (hand off to `ce-plan`, save as a plain markdown file, or finish).
    - **Resume:** Check `docs/plans/` for a recent requirements-only plan on this topic (has `## Product Contract` without `## Planning Contract` or `## Implementation Units`). If found, summarize its current state and ask whether to continue updating it in place or start fresh.
    - **Already-clear requirements fast path:** When the prompt already provides specific acceptance criteria, exact expected behavior, and constrained scope, classify scope tier (Step 1), run the Inline Constraint Check (Step 2) if repo-backed, skip Grounding Scout / Pressure Test / Phase 2 dialogue / Phase 3 Approaches, and proceed directly to Phase 3 Step 2 (Scoping Synthesis), preserving Path A/B tier rules.
@@ -44,7 +46,7 @@ Explore a vague or ambiguous idea through structured dialogue to produce a right
 
 2. **Inline Constraint Check & Grounding Scout (Standard / Deep):**
    - **Inline first:** Read repo-root `STRATEGY.md` (or `PRODUCT.md`/`VISION.md`) for product boundaries and `CONCEPTS.md` for canonical domain terms if they exist.
-   - **Grounding Scout:** Dispatch one plain generic subagent (in background if supported, so Phase 2 starts during think-time; if dispatch is unavailable or fails, run inline). Pass the topic and settled decisions per Core Rule 7. Budget ~20 targeted reads to locate similar features, prior plans/specs, adjacent examples, and current state of touched surfaces. Instruct it to return only a 3-5 line gist plus concise verbatim pointers (`file` + symbol/fact), no proposals. Wait for it before Phase 3 if still running.
+   - **Grounding Scout:** Dispatch one plain generic subagent (in background if supported, so Phase 2 starts during think-time). Queue and retry on capacity backpressure; fall back inline ONLY when no subagent tool exists or a non-capacity launch failure occurs (and disclose it). Pass the topic and settled decisions per Core Rule 7. Budget ~20 targeted reads to locate similar features, prior plans/specs, adjacent examples, and current state of touched surfaces. Instruct it to return only a 3-5 line gist plus concise verbatim pointers (`file` + symbol/fact), no proposals. Wait for it before Phase 3 if still running.
 
 3. **Internal Product Pressure Test (Standard / Deep; agent-internal, never a checklist dump):**
    Scan the user's opening (focusing scrutiny on unexamined directives; skip already-settled decisions) and fold ONLY the real gaps into Phase 2 as **separate open-ended probes (no option menus; one gap per probe)** before Phase 3. If a probe surfaces genuine uncertainty, record it as an explicit assumption:
@@ -67,8 +69,8 @@ Explore a vague or ambiguous idea through structured dialogue to produce a right
    - **Offer (blocking 2-option choice, once per flagged territory):** *"Map out the 3-7 key decisions, realistic options, hazards, and recommended defaults first, or keep going with questions where I fill gaps with labeled assumptions?"* (`Map the territory first` / `Proceed with questions`). On decline, proceed with questions and fill gaps with recommended defaults as explicit assumptions.
    - **If accepted:**
      1. **Ground first:** For in-repo territory, wait for the Grounding Scout or read the repo directly (never map in-repo code from memory). For external domains, use web search when available, or label model-knowledge items `Unverified - from model knowledge`. **Display** any questions the codebase/sources already answer as settled ground with citations.
-     2. **Present the map (3-7 items, max 4 lines each):** Put architecture-changing **decisions** first (2-4 genuinely defensible options, trade-offs, plain recommended default; list ruled-out options only in why-it-matters). Put **hazards** last (hazards state constraints only, with no option menu or default).
-     3. **Re-enter dialogue:** Ask one multi-select question for which decisions to walk through. Walk through selected decisions **one per turn** as informed single-select menus; record unselected decisions and hazards as explicit assumptions/constraints.
+     2. **Present the map (3-7 items, max 4 lines each):** Put architecture-changing **decisions** first (2-3 genuinely defensible options, trade-offs, plain recommended default; list ruled-out options only in why-it-matters). Put **hazards** last (hazards state constraints only, with no option menu or default).
+     3. **Re-enter dialogue:** When >3 decisions are on the map, present the numbered list in chat and ask open-ended which decisions to walk through (otherwise <=3 options). If the user wants a deeper explanation of an unfamiliar subsystem first, invoke `ce-explain` (caller mode; returns here to resume dialogue). Walk through selected decisions **one per turn** as <=3-option single-select menus (or numbered chat prose when >3); record unselected decisions and hazards as explicit assumptions/constraints.
 4. **Integration check (before exiting dialogue):** Mentally combine all user answers plus defaults. For each non-obvious downstream interaction the user has not tracked, ask one open-ended probe.
 5. **Exit condition:** Exit when all hold **or the user explicitly wants to proceed**: primary actor known (or marked unknown), desired outcome stated, key in-scope/out-of-scope boundaries clear, success signals known or recorded as assumptions, all found rigor gaps probed or recorded as assumptions (settled decisions count as already-probed), and no integration-check question pending.
 
@@ -92,13 +94,13 @@ Explore a vague or ambiguous idea through structured dialogue to produce a right
    - **Revision loop:** A revision is not a confirmation. After any user change, integrate it, re-present the revised synthesis, and wait for explicit confirmation. Offer a blocking `Proceed and write` / `Hold off and keep discussing` cut only if the *same underlying decision dimension* is revised twice (new-item revisions continue freely). If the user signals they want a different workflow (e.g., jump straight to debugging or implementation), stop and redirect cleanly.
 
 3. **Claim Verifier (parallel during Path B confirmation wait, Standard / Deep):**
-   If the upcoming doc asserts checkable repo facts (especially absence claims), dispatch one fresh plain generic subagent (~15 targeted reads; keep blind to settlement markers per Core Rule 7; do not block the confirmation prompt on it) to mark each claim `confirmed`, `refuted` (with evidence), or `unverifiable`. Fix refuted claims and label unverifiable ones as explicit assumptions before writing. If subagent dispatch fails or is unavailable, verify claims inline before Phase 4.
+   If the upcoming doc asserts checkable repo facts (especially absence claims), dispatch one fresh plain generic subagent (~15 targeted reads; keep blind to settlement markers per Core Rule 7; do not block the confirmation prompt on it) to mark each claim `confirmed`, `refuted` (with evidence), or `unverifiable`. Fix refuted claims and label unverifiable ones as explicit assumptions before writing. Queue and retry on capacity backpressure; fall back to inline verification only when no subagent tool exists or a non-capacity failure occurs (disclosing it).
 
 ---
 
 ## Phase 4: Write Requirements-Only Unified Plan (if warranted)
 
-Write a file ONLY if decisions need stable IDs for downstream planning/review or the user asked for one (e.g., `docs/plans/YYYY-MM-DD-<type>-<topic>-plan.md`). Emit ONLY `## Goal Capsule` and `## Product Contract` (plus any material custom product section); leave technical planning sections to `ce-plan`. Omit empty sections, `status` fields, and `## Next Steps`.
+Write a file ONLY if decisions need stable IDs for downstream planning/review or the user asked for one (`docs/plans/YYYY-MM-DD-<type>-<topic>-plan.md`, where `<topic>` is a sanitized kebab-case slug `[a-z0-9-]` with `/`, `\`, and `..` rejected; append `-2`, `-3`, ... on filename collision so existing plans are never overwritten). Emit ONLY `## Goal Capsule` and `## Product Contract` (plus any material custom product section); leave technical planning sections to `ce-plan`. Omit empty sections, `status` fields, and `## Next Steps`.
 
 **Structure:**
 - **Metadata (YAML frontmatter):** `title` (`<Name> - Plan`, without `feat:`/`fix:` prefix), `type` (`feat` | `fix` | `refactor` | `chore` | `docs`), `date` (`YYYY-MM-DD`), `topic` (kebab-case).
@@ -140,9 +142,10 @@ Fix a failed check in place ONLY when the correction preserves settled intent, t
 
 ## Phase 5: Vocabulary Capture & Handoff (all software runs)
 
-1. **Vocabulary Capture (optional):** If `CONCEPTS.md` already exists at repo root, silently add or refine newly resolved project-specific domain terms (entities, processes, statuses only; exclude code symbols and provisional terms; never create `CONCEPTS.md` or delete existing entries).
+1. **Vocabulary Capture (optional):** If `CONCEPTS.md` already exists at repo root (creation is owned solely by `ce-compound` Full mode), silently add or refine newly resolved project-specific domain terms (entities, processes, statuses only; exclude code symbols and provisional terms; leave existing entries intact).
 2. **Handoff:** Report the artifact's absolute path when a file was written.
-   - **If `Resolve Before Planning` is empty:** Offer to proceed to `ce-plan`, refine scope further, or finish.
-     - On `ce-plan`: pass the artifact's absolute path (or a concise summary of finalized and settled decisions when chat-only).
+   - **If `Resolve Before Planning` is empty:** Offer a blocking choice of at most 3 options: (1) proceed to `ce-plan` *(mention in prose that `ce-doc-review` can pressure-test the written Product Contract or `ce-prototype` can test a costly feel/UX question first)*, (2) refine scope further, or (3) finish.
+     - On `ce-plan`: pass the artifact's absolute path (or concise settled-decisions summary when chat-only); **control transfers** and `ce-brainstorm` ends.
+     - On `ce-doc-review` or `ce-prototype`: pass the artifact's absolute path; **control returns** here at Handoff afterward.
      - On `refine scope further`: return to Phase 2 dialogue, re-synthesize, update the artifact (if written) + rerun Ready for Planning Check, and return to Handoff.
    - **If `Resolve Before Planning` is non-empty:** Hold `ce-plan` until blockers clear. Ask the blocking questions one at a time by default. If the user prefers to pause, state what is holding planning and note they can tell you to proceed anyway (converting each remaining item into an explicit decision, assumption, or `Deferred to Planning`). After answering or overriding blockers, update the artifact in place, clear `Open Blockers`, rerun Ready for Planning Check, and present Handoff with `ce-plan` available.

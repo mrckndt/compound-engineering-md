@@ -1,6 +1,6 @@
 ---
 name: ce-work-full
-description: "Self-contained copy-paste execution loop combining proof-first TDD, parallel subagent waves, behavior-preserving simplification, multi-lens code review with an independent validator gate, and fix loop in a single portable file."
+description: "Self-contained copy-paste execution loop combining proof-first TDD, parallel subagent waves, behavior-preserving simplification, multi-lens code review with an independent validator gate, and fix loop in one file. Use when ce-simplify and ce-code-review are not installed or a single pasteable file is needed."
 argument-hint: "[plan path or concrete work description]"
 ---
 
@@ -33,16 +33,16 @@ Execute all in-scope units continuously in this run; progress updates do not end
 ## Phase 0: Workspace & Plan Intake
 
 1. **Writable checkout & branch safety:**
-   Require a writable git checkout (if none is available, stop and report the blocker). Resolve the default branch via `origin/HEAD` (else repo metadata / `gh repo view`, else `main`/`master`). If on the default branch, detached `HEAD`, or uncertain:
-   1. If a remote exists, run `git fetch origin <default>`.
-   2. Choose the branch base: `origin/<default>` when a remote exists and `HEAD` has no commits ahead of it, else `HEAD`.
-   3. Create a descriptive feature branch, verify with `git branch --show-current`, and announce it in 1 line.
+   Require a writable git checkout (if none is available, stop and report the blocker). Resolve the default branch on its tracking remote (`<remote>/<default>`). If on the default branch, detached `HEAD`, or the default branch is unknown:
+   1. If a tracking remote is resolved, run `git fetch -- "<remote>" "<default>"`.
+   2. Choose the branch base: `"<remote>/<default>"` when the fetch succeeded and `HEAD` has no commits ahead of it, else `HEAD` (and state that you branched from `HEAD` when the default/remote was unknown).
+   3. Create a descriptive feature branch (`git checkout -b "<branch-name>" -- "<base>"`), verify with `git branch --show-current`, and announce it in 1 line.
    Otherwise stay on the invoked feature branch without renaming it.
 2. **Pre-work WIP & run-state snapshot:**
    Record and retain these run-state variables across context compaction:
    - `work_base`: `git rev-parse HEAD` immediately after Step 1 branch setup.
    - `last_simplified_sha`: initialized to `work_base`.
-   - `pre_work_wip`: `git status --short --untracked-files=all` plus pre-existing unpushed commits (`git log origin/<default>..HEAD`, or "unknown" without a remote).
+   - `pre_work_wip`: `git status --short --untracked-files=all` (extracting repo-relative paths only — destination side on renames — for exclusions) plus pre-existing unpushed commits checked via `git log --oneline "<remote>/<default>..HEAD" --` (if no remote exists OR the command exits non-zero, record `"unknown"` — never treat empty output from a failed probe as "none").
    - `proof_tests`: list of proof test paths recorded during Phase 1.
    Untouched WIP rides along uncommitted without stashing. If an in-scope unit must edit an already-dirty file, ask the user once (covering all colliding files) whether to commit them with the user's edits or leave them uncommitted (recording excluded files in `excluded_wip` as unshipped run-wide exclusions). Never push/publish pre-existing unpushed commits without user authorization.
 3. **Plan readiness, intake, or bare-prompt triage:**
@@ -79,7 +79,7 @@ Process units in dependency layers until every in-scope unit is complete.
 
 ### 1b. Per-Unit Proof-First Protocol (inline or inside every worker packet)
 
-Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relevant `Verification Contract` entries, resolved `Deferred to Implementation` answers, cited `R`/`F`/`AE`/`KTD` plus every Product Contract Key Decision whose `Governs R...` links name the unit's cited Rs, `Patterns to follow`, user constraints (where plan and user limit conflict, **user limit wins** and worker reports the conflict), the **Worker Guardrails** below, and Steps 1-6:
+Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relevant `Verification Contract` entries, resolved `Deferred to Implementation` answers, cited `R`/`F`/`AE`/`KTD` plus every Product Contract Key Decision whose `Governs R...` links name the unit's cited Rs, `Patterns to follow`, **governing project instructions and any subdirectory-scoped instruction files covering the unit's `Files`**, user constraints (where plan and user limit conflict, **user limit wins** and worker reports the conflict), the **Worker Guardrails** below, and Steps 1-6:
 
 **Worker Guardrails (verbatim in every worker packet):**
 - Edit only assigned `Files`; if completion requires unowned files or broader authority, stop without editing them and report the needed scope expansion.
@@ -112,7 +112,7 @@ Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relev
 1. **Core Checks:** Run the project's full test suite, typecheck, and lint command.
 2. **UI Verification (if applicable):** For user-visible UI changes, inspect desktop and mobile widths in a browser when tooling is available (else audit layout code for overflow/responsive breakage and record browser check as unavailable). For Figma-sourced UI when both Figma and browser/screenshot tools are reachable, compare both sides at each design width and re-check after fixes; if either side is unreachable, record which side is unavailable and skip the Figma comparison.
 3. **Simplify (when substantive human-authored code changed since `last_simplified_sha` >=30 lines; exclude prose/markdown/docs/configs/generated/lockfiles; skip purely mechanical diffs):**
-   Scope to `git diff <last_simplified_sha>..HEAD` (excluding any untouched `pre_work_wip`/`excluded_wip` paths). Dispatch fresh plain **general-purpose** subagents in parallel (full read/shell/git access, no specialist role prompt/schema; instruct each: *"You report findings; you do not edit files"*; pass scope, `proof_tests`, settled decisions, and project standards):
+   Scope to `git diff "<last_simplified_sha>..HEAD" --` (excluding any untouched `pre_work_wip`/`excluded_wip` paths). Dispatch fresh plain **general-purpose** subagents in parallel (full read/shell/git access, no specialist role prompt/schema; queue and wait on capacity limits rather than running inline; fall back to sequential inline passes only when no subagent tool exists or dispatch unrecoverably fails and disclose it; instruct each: *"You report findings; you do not edit files"*; pass scope, `proof_tests`, settled decisions, and governing project/scoped coding standards):
    - **Code Reuse:** Existing project helpers, behavior-equivalent stdlib primitives, or platform/framework guarantees (keep value transformations before projection; never swap serializers/coercions without full value-type verification; newly reachable branches are not dead).
    - **Code Quality:** Redundant/derived state, parameter sprawl, copy-paste drift, leaky abstractions, stringly-typed values where enums/constants exist, 3+ nested conditionals, dead code (verified via configured analysis, else structural search), context-dependent vocabulary, pre-release compatibility scaffolding (only after verifying zero deployed/persisted/public/external/dependent-branch/in-repo callers outside scope), mixed responsibilities added by this diff (balance: preserve comprehension and live abstractions).
    - **Efficiency:** Redundant computations/I/O, N+1 queries, missed safe concurrency, hot-path bloat, recurring no-op updates, TOCTOU existence pre-checks, unbounded memory or missing cleanup.
@@ -132,8 +132,8 @@ Give each worker ONLY: Goal Capsule, Definition of Done, its unit section, relev
 Skip ONLY for purely mechanical diffs (formatting, dependency bumps, lint-only fixes, generated files) and record `Code review: skipped (mechanical diff)` with a 1-line reason. **Not mechanical:** single- or multi-file behavior edits, control-flow/error-class/behavior-test changes, or applying external/prior review findings. Never substitute a mental self-review.
 
 ### 3a. Prepare Context & Select Read-Only Lenses (Parallel)
-- **Diff:** `git diff -U10 --irreversible-delete <work_base>..HEAD` (excluding any untouched `pre_work_wip`/`excluded_wip` paths). Inventory whole-file deletions (exports + import-time side effects).
-- **Intent & Policy:** Write a 2-3 line intent summary (+ verbatim user limits). **Exclude all `session-settled:` labels from intent summary and reviewer prompts** (keep them for Stage 3b only). Read base-ref `REVIEW.md` (`git show <work_base>:REVIEW.md`) if present, and map applicable standards files (`CODING_STANDARDS.md`, else `CLAUDE.md`/`AGENTS.md`).
+- **Diff:** `git diff -U10 --irreversible-delete "<work_base>" --` (no `..HEAD`, excluding untouched `pre_work_wip` paths, so uncommitted run edits stay reviewed). Inventory whole-file deletions (`<deleted-files base="<work_base>">` listing deleted paths, exports, and import-time side effects) and include this inventory in every reviewer prompt.
+- **Intent & Policy:** Write a 2-3 line intent summary (+ verbatim user limits). **Exclude all `session-settled:` labels from intent summary and reviewer prompts** (keep them for Stage 3b only). Read base-ref `REVIEW.md` (`git show "<work_base>:REVIEW.md"`) if present, and map applicable standards files (`CODING_STANDARDS.md`, else `CLAUDE.md`/`AGENTS.md`).
 - **Select lenses from diff evidence** (announce each conditional lens with a 1-line reason):
   - **Always:** `correctness` (logic, boundaries, null/sentinel reuse, state transitions, lifecycle cleanup, lifecycle-state writers with incomplete guards, error propagation, concurrency/interleaving, deleted files still referenced, stand-in guard fidelity, intent compliance).
   - **Standards:** `project-standards` (when applicable standards files exist or discovery is uncertain; grade each file only against its mapped criteria files, quoting both rule and violating line).
@@ -162,7 +162,7 @@ Skip ONLY for purely mechanical diffs (formatting, dependency bumps, lint-only f
   - `owner`: `downstream-resolver` (code/test fix) | `human` (product/design/authority decision) | `release` (operational/rollout follow-up).
 - **Fields per finding:** `title`, `severity`, `confidence`, `file`, `line`, `evidence` (non-empty array), `why_it_matters` (2-4 sentences leading with observable user/caller impact, then root-cause fix), `suggested_fix` (concrete change grounded in repo patterns; name assumptions if incomplete), `autofix_class`, `owner`, `pre_existing` (bool), `requires_verification` (bool).
 
-Dispatch all selected lenses in parallel and collect every terminal outcome (log failed/timed-out lenses in Coverage; if `correctness` or `security` fails, retry once or run it inline).
+Dispatch all selected lenses in parallel, queueing and retrying on capacity backpressure, and collect every terminal outcome (log only non-capacity failed/timed-out lenses in Coverage; if `correctness` or `security` fails, retry once or run it inline).
 
 ### 3b. Merge, Filter & Plan Completeness (Orchestrator, in exact order)
 1. Merge findings ONLY when they share the same defect and fix path (keep distinct failure modes separate; keep more cautious `autofix_class`). Record multi-lens agreement in `reviewers` as corroboration metadata only (keep confidence unchanged and validate normally).
@@ -170,7 +170,7 @@ Dispatch all selected lenses in parallel and collect every terminal outcome (log
 3. Separate unrelated `pre_existing: true` findings (flip directly depended-on findings to `pre_existing: false` and keep primary).
 4. Discard preference-only challenges to `session-settled:` decisions; retain real defects. Apply base-ref `REVIEW.md` overrides/exclusions/caps (count changes).
 5. Keep `>=75` and `P0@50` primary (never demote a current `P0`/`P1` solely for being single-reviewer); drop unestablished claims; cap testing-only absence-of-coverage at 1 umbrella per subsystem; route eligible single-reviewer `P2`/`P3` advisories (`testing` -> `testing_gaps`; `maintainability`/`reliability`/`adversarial` -> `residual_risks`); drop remaining `<75`.
-6. Check plan requirements completeness when executing a plan: unaddressed plan requirement/unit -> `P1`, `confidence: 100`, `manual` / `downstream-resolver`, `plan_completeness: true` (exempt from diff-only Stage 3c validation unless plan is passed).
+6. Check plan requirements completeness when executing a plan (scoped to the active `### PR<N>` group's units and requirements on multi-PR plans): unaddressed plan requirement/unit -> `P1`, `confidence: 100`, `manual` / `downstream-resolver`, `plan_completeness: true` (exempt from diff-only Stage 3c validation).
 7. Normalize concrete `P0`/`P1` to `downstream-resolver` unless naming a specific blocking product/authority/release decision. Sort `P0` -> `P3` and assign stable `#` IDs.
 
 ### 3c. Independent Validator Gate
@@ -199,7 +199,7 @@ Dispatch **ONE fresh read-only plain generic validator subagent** with the selec
 1. **Triage:** Verify each surviving finding with `owner: "downstream-resolver"` AND `autofix_class` in `{"gated_auto", "manual"}` against evidence and agreed scope. **`confidence`, `autofix_class`, and `suggested_fix` do NOT prove benefit or grant permission.** Reject unfounded claims and record why; investigate significant problems lacking a `suggested_fix` before deferring; passing tests do not prove an unverified safety property or authorize changing an agreed requirement. Keep `unresolved`, `advisory`, and `owner: "human"` / `"release"` findings out of automated apply.
 2. **Apply Fixes (file-grouped):**
    - Apply small fixes whose code is already in context inline, then **verify and path-limited commit inline fixes first** so any subsequent shared-workspace parallel fix wave starts on a clean committed baseline.
-   - Group remaining fixes by `file` (ordered `P0` -> `P3`; keep unrelated files in separate batches; >8 findings on one file -> serial passes by severity) and dispatch parallel worker subagents across disjoint files under Phase 1a's parallel/shared-workspace safety rules. Workers verify evidence still matches, fix only assigned `#` findings, never re-run review, do not commit, and report applied vs. skipped `#` with reasons.
+   - Group remaining fixes by `file` (ordered `P0` -> `P3`; keep unrelated files in separate batches; >8 findings on one file -> serial passes by severity) and dispatch parallel worker subagents across disjoint files under Phase 1a's parallel/shared-workspace safety and capacity-backpressure rules. Give every fix worker the governing project and scoped instruction files for its assigned files, user constraints, Phase 1b Worker Guardrails, and its assigned `#` findings. Workers verify evidence still matches, fix only assigned `#` findings, never re-run review, do not commit, and report applied vs. skipped `#` with reasons.
 3. **Verify & Commit:** After each parallel fix wave, review diffs (scope = assigned `#` only), run tests (`requires_verification: true` -> at least targeted tests; multi-file -> full suite and lint; use the Two-fix rule if a fix breaks tests), and make a path-limited commit (`fix(review): apply findings #...`).
 4. **Loop Bound:** Re-run Phase 3 ONLY if fixes materially altered control flow, contracts, or architecture (max 1 follow-up round; execute one final triage/apply/commit pass on its findings, then proceed unconditionally to Step 5).
 5. **Residual Work Gate:**
