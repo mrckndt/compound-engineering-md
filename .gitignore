@@ -1,0 +1,52 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Vim
+[._]*.s[a-v][a-z]
+!*.svg
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+Sessionx.vim
+.netrwhist
+*~
+*.un~
+tags
+
+# Zed
+.zed/
+
+# Claude
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+
+# OpenCode
+.opencode/
+opencode.json
+opencode.jsonc
+
+# oh-my-pi
+.omp/
+.pi/
+.pi_config/
+
+# Research
+research/
